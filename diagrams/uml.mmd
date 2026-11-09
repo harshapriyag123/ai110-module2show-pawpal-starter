@@ -1,15 +1,57 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
-
-    class ClassName {
-        +type attribute
-        +method() returnType
+    direction TB
+    class Owner {
+        +str name
+        +list pets
+        +int available_minutes
+        +time day_start
+        +time day_end
+        +validate()
+        +add_pet(pet)
+        +get_all_tasks() list
     }
-
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        +str id
+        +str name
+        +str species
+        +list tasks
+        +add_task(task)
+        +get_task(task_id) Task
+        +update_task(task_id, changes) Task
+        +mark_task_complete(task_id) Task
+        +mark_task_incomplete(task_id)
+        +remove_task(task_id)
     }
-
-    ClassName --> AnotherClass : relationship
+    class Task {
+        +str id
+        +str series_id
+        +str description
+        +time scheduled_time
+        +date due_date
+        +int duration_minutes
+        +str priority
+        +str frequency
+        +bool completed
+        +mark_complete() Task
+        +end_at() datetime
+    }
+    class Scheduler {
+        +Owner owner
+        +filter_tasks(pet_id, pet_name, completed, on_date) list
+        +sort_by_time(tasks) list
+        +detect_conflicts(on_date) list
+        +generate_schedule(on_date) DailyPlan
+    }
+    class DailyPlan {
+        +date on_date
+        +list scheduled
+        +list skipped
+        +int total_minutes
+        +to_rows() list
+    }
+    Owner "1" o-- "0..*" Pet : manages
+    Pet "1" *-- "0..*" Task : owns occurrences
+    Scheduler --> Owner : get_all_tasks
+    Scheduler ..> DailyPlan : creates
+    DailyPlan --> Task : selected and skipped
+    Task ..> Task : next occurrence
