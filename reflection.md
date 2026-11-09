@@ -1,83 +1,83 @@
-# PawPal+ Project Reflection
+# PawPal+ — Project Reflection
 
-> AI-assisted technical reflection draft. The implementation and verification statements describe this repository and this ChatGPT Work session. Personal learning and opinions should be reviewed and personalized by the student before submission; this document does not claim unobserved manual work or separate chat sessions.
+**Student:** Harsha Priya Ganapathy  
+**Course:** CodePath AI110 — Foundations of AI Engineering  
+**Project:** Module 2 · PawPal+
 
 ## 1. System Design
 
 ### a. Initial design
 
-Three core user actions are:
+I organized PawPal+ around three user actions: adding a pet, managing its care tasks, and viewing or completing a daily plan across the household.
 
-1. Add a pet to an owner's household.
-2. Create and manage a dated care task for a pet, such as feeding, walking, or a reminder.
-3. View a sorted daily plan across all pets, resolve conflicts, and complete tasks.
+The initial design assigned a distinct responsibility to each required class. `Owner` holds identifying information, pets, and preferences. `Pet` manages its tasks. `Task` represents a care activity. `Scheduler` organizes the tasks retrieved through `Owner.get_all_tasks()`. Python dataclasses keep the model's attributes explicit and reduce constructor boilerplate.
 
-The initial UML separated four responsibilities: `Owner` stores pets and preferences; `Pet` stores its care tasks; `Task` stores one activity's data; and `Scheduler` organizes the owner's combined task collection. Dataclasses keep the data model explicit and avoid repetitive constructors. `Owner.get_all_tasks()` is the single retrieval path used by the scheduler, so a second pet is included automatically.
+The owner-wide retrieval method is an important architectural boundary: adding a second pet automatically includes its tasks in sorting, filtering, conflict detection, and plan generation.
 
 ### b. Design changes
 
-The first skeleton considered a routine with a start date and a set of completion dates. After the full assignment text was supplied, that design was changed to **one Task per dated occurrence**, because the requirement explicitly asks for a new instance after daily or weekly completion. A `series_id` connects related occurrences while unique task IDs preserve individual history. `Pet.mark_task_complete()` attaches the returned next instance and prevents duplicates on repeated completion.
+The first skeleton represented a routine with a start date and a set of completion dates. I replaced that approach when the complete requirements made new-instance recurrence explicit. The final Task represents one dated occurrence. Completion preserves that occurrence as history and creates a new pending task with a new ID and the same series ID.
 
-A small `DailyPlan` dataclass was added to return selected tasks and reasons for skipped tasks together. This keeps display formatting out of the selection algorithm and lets the CLI and Streamlit share the same result. The final UML documents these changes.
+I added `DailyPlan` to return selected tasks, excluded tasks, reasons, and care-time totals together. I also added JSON serialization to `Owner` so the same model can be restored after an application restart. The final UML includes both the persistence methods and the next-available-slot algorithm.
 
 ## 2. Scheduling Logic and Tradeoffs
 
 ### a. Constraints and priorities
 
-The scheduler filters pending tasks by selected due date, then considers high, medium, and low priority. Ties use start time, then duration, with stable insertion order for exact ties. A task must fit wholly within the owner's available hours, fit the remaining active-care budget, and avoid overlaps with already selected tasks. Selected tasks are finally displayed chronologically.
+The scheduler filters to pending tasks due on the selected date, considers high/medium/low priority, and breaks ties by time and duration. It only selects tasks that fit the owner's hours, remaining active-care budget, and non-overlap constraint. The result is displayed chronologically.
 
-The budget represents remaining work rather than total work already completed. Fixed task times are preserved. Any excluded task receives an availability, conflict, or budget reason so the owner can make the next decision.
+A separate gap-finding algorithm scans the shared calendar and returns the earliest free interval of a requested duration. It merges overlapping occupied time as it scans, considers every pet, and can exclude the occurrence currently being edited. It suggests a time without moving existing tasks.
 
 ### b. Tradeoffs
 
-The greedy priority algorithm is easy to explain but is not guaranteed to maximize the number of tasks or produce a globally optimal plan. One long high-priority task can displace several lower-priority tasks. This is reasonable for an introductory project where predictable priorities and readable logic matter.
+The priority scheduler uses a readable greedy algorithm. It gives predictable priorities and clear explanations but does not guarantee a globally optimal combination of tasks. One high-priority task may consume time that several lower-priority activities could otherwise use.
 
-Conflict detection checks complete time intervals rather than only equal start times. Its pairwise O(n²) approach is simple to inspect and adequate for a small household, although a sweep-line algorithm would scale better. Conflicts are flagged and lower-ranked tasks excluded; the system does not silently change care times.
+Conflict detection checks full intervals rather than only equal start times. Pairwise comparison is O(n²), which is reasonable for a small household and easier to inspect than a more complex event index. Gap finding sorts and scans intervals in O(n log n).
 
-Recurrence stores completed history and creates just one next instance. This meets the new-instance requirement without generating an unbounded calendar. It also means an overdue routine must be completed or edited rather than silently advancing itself.
+Recurring tasks advance from their due date when completed. This preserves history and prevents unbounded future-task generation, while keeping overdue care visible on its original date.
 
 ## 3. AI Collaboration
 
-### a. How AI was used
+### a. How I used AI
 
-The user supplied the GitHub repository and course instructions and asked ChatGPT Work to implement them. The assistant inspected the starter, drafted UML and class skeletons, implemented the CLI-first backend, added behavioral tests, wired the UI, and prepared documentation. Automatic edits across multiple files and executable tests were the most useful capabilities: recurrence affects `Task`, `Pet`, the UI, the demo, and the tests together.
+I used ChatGPT Work for design scaffolding, multi-file implementation, test generation, UI integration, and documentation. The workflow connected the GitHub repository with actual Python execution so generated code could be evaluated through the CLI and tests.
 
-Providing the complete assignment text was especially useful context engineering. The initial Markdown omitted the detailed later phases; the second text attachment made the sorting, filtering, new-instance recurrence, and verification requirements explicit.
+I compared two context strategies using the same assistant: a broad implementation request with the initial partial attachment, and the complete assignment with explicit recurrence and acceptance requirements. The structured comparison in `ai_interactions.md` records the inputs, resulting designs, useful output, problems, evidence, and final decision.
 
-This work used **one continuous conversation**, not separate chats for each phase. Design, backend, UI, testing, and documentation were handled as separate work stages. Separate phase-specific chats could be helpful in future work, but they were not used here and are not claimed.
+The work remained in one continuous conversation, organized by design, backend, algorithms, UI, storage, and testing stages. This retained the relationships between requirements and implementation without claiming that separate model providers or chat sessions were used.
 
-### b. Judgment and verification
+### b. Judgment and correctness evidence
 
-An early date-rule-only recurrence design was modified after comparison with the complete instructions: a new pending Task is now created and attached to the pet. This was a requirements-driven change to an AI-proposed design, not a claim that the student manually rejected code in an IDE.
+I retained the suggested four-class separation and owner-wide retrieval method. I modified the completion-date-set idea because it did not demonstrate a newly created Task. The final tests assert different IDs, the next due date, pending status, preserved series identity, and no duplicate next occurrence after repeated completion.
 
-Verification uses tests that assert a different task ID, the next due date, preserved series identity, pending status, and no duplicate occurrence after repeated completion. A separate test confirms the scheduler calls the owner's shared retrieval method. These checks provide evidence beyond plausible-looking generated code.
-
-The student should still review the code, explain these choices in their own words, and perform their own acceptance walkthrough before submitting the personal reflection.
+I also distinguished CSV plan export from durable household persistence. A schedule export alone cannot restore all pets, task identities, or history. The final JSON implementation serializes the whole model, validates restored data, and atomically replaces the saved file only after a successful write.
 
 ## 4. Testing and Verification
 
-### a. What was tested
+### a. What I tested
 
-The suite contains 68 tests: model completion/addition and validation, daily/weekly recurrence, chronological sorting, pet/status/date filtering, retrieval across pets, exact-time and interval conflicts, adjacency, priority and care-budget selection, availability boundaries, empty and zero-budget cases, editing/deleting by ID, and the CLI demo.
+The suite has **107 passing cases** covering core models, sorting and filtering, cross-pet retrieval and conflicts, recurrence, priority and budget constraints, availability boundaries, empty states, invalid inputs, identity-safe edits, next-available-slot search, persistence, the CLI, and the Streamlit interface.
 
-Eight Streamlit `AppTest` scenarios additionally exercise forms, session state, adding multiple pets, invalid input, task editing, generated plans, completion/recurrence, deletion, filters, and preference updates. They verify actual UI actions reach the backend rather than testing only mocked button handlers.
+Persistence tests reconstruct the complete household, preserve completion and recurrence IDs, reject malformed schemas and values, and simulate failed disk operations to confirm the previous file survives. A CLI integration test saves and loads in separate processes. A Streamlit test opens a fresh application session and restores the saved household.
 
-Local verification passed all tests. The measured coverage is 100% of `pawpal_system.py` statements and 99% combined for the backend and CLI. This is not a claim of complete UI coverage or proof of correctness for every possible input.
+The tests measure **100% statement coverage for `pawpal_system.py`** and **98% combined backend/CLI statement coverage**. UI behavior is exercised through Streamlit's `AppTest`; those percentages describe backend/CLI statements rather than UI line coverage.
 
 ### b. Confidence
 
-Technical confidence is **4/5 stars** for the documented single-owner, same-day workflow. The tests check meaningful constraints and recurrence edge dates, including year and leap-day boundaries. Future tests should cover a larger generated dataset, concurrent sessions, persistent storage failures, time zones, and overnight availability if those features are introduced.
+My confidence level is **4/5 stars** for the defined single-household workflow. The test suite covers normal behavior and meaningful failure cases. Additional work would be needed for authenticated multi-user hosting, concurrent editing, time zones, overnight availability, and large household datasets.
 
 ## 5. Reflection
 
 ### a. What went well
 
-The strongest result is the clean boundary between the model and the UI: the same scheduler powers a readable CLI and the Streamlit plan. Explicit skipped-task explanations make the algorithm's choices visible, and stable identifiers keep duplicate descriptions from breaking edits or completion.
+The clearest result is the separation between the model and the interface. The same backend powers the CLI, the interactive plan, JSON restoration, and the test suite. Explicit reasons for excluded tasks make the scheduling algorithm understandable, while unique IDs protect task management when descriptions repeat.
 
-### b. What could improve
+The persistence extension also reinforces the value of a clear data model: dates, times, completion history, and recurrence identity can be reconstructed consistently rather than stored as display-only rows.
 
-A next iteration could add JSON save/load, a series editor, and a user-controlled suggestion for the next free time slot. Durable storage would need validation and backup tests. A more advanced optimizer could improve budget usage, but its behavior should remain explainable.
+### b. What I would improve
+
+A future iteration could add a bulk recurrence-series editor, a calendar view, and a more advanced optimizer. A hosted multi-user version would need authentication and storage isolated by household. Concurrent writes would need coordination beyond the current single-household atomic file replacement.
 
 ### c. Key takeaway
 
-A UML diagram, implementation, and verification suite should describe the same system. Acting as a lead architect means checking generated code against the requirements, choosing readable tradeoffs, and asking for evidence that the resulting behavior works. AI can accelerate implementation; a passing test suite and an honest account of the process make the work reviewable.
+A diagram, implementation, and tests should explain the same system. Context engineering improved the AI output most when requirements were translated into specific observable behavior. Working as the lead architect meant preserving a simple model, refining suggestions when the requirements demanded it, and using execution evidence to support the final design.

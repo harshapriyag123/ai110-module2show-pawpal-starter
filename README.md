@@ -1,6 +1,6 @@
 # 🐾 PawPal+
 
-### Smart care planning for every pet in the household
+### Smart pet care, thoughtfully planned
 
 [![PawPal checks](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/actions/workflows/tests.yml/badge.svg)](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
@@ -8,42 +8,43 @@
 
 **Student:** Harsha Priya Ganapathy  
 **Course:** CodePath AI110 — Foundations of AI Engineering  
-**Project:** Module 2 · Show What You Know: PawPal+  
+**Submission:** Project 2 · PawPal+  
 **Rubric:** 20 required points + 10 possible bonus points
 
-PawPal+ helps an owner manage daily care for multiple pets. Add walks, feeding, grooming, or reminders; assign dates, times, durations, and priorities; then generate a daily plan that fits the owner's available hours and care budget. The app explains both selected tasks and tasks needing attention.
+PawPal+ is a Python and Streamlit application that helps an owner manage care for multiple pets. It organizes walks, feeding, grooming, reminders, and appointments into an explained daily plan that respects time, priority, and availability. Completed routines create their next occurrence, and the complete household is saved to JSON for the next application run.
 
-The project follows a **UML → dataclass models → CLI demo → algorithms → automated verification → Streamlit integration** workflow. The Python backend runs independently of the UI.
+I built the project around a clear separation of responsibilities: **design the model, implement the backend, demonstrate it in the CLI, test its behavior, and connect the same logic to an interactive interface.**
 
-| Review at a glance | Verified evidence |
+| Project highlights | Delivered behavior |
 |---|---|
-| Household demo | 1 owner, 2 pets, 5 care tasks |
-| Core design | `Owner`, `Pet`, `Task`, `Scheduler`, plus a `DailyPlan` result class |
-| Algorithms | Chronological sorting, combined filters, interval conflict detection, recurrence, and constrained priority scheduling |
-| Automated tests | **68 passing cases:** 59 backend, 1 CLI, 8 Streamlit UI |
-| Statement coverage | **100%** of `pawpal_system.py`; **99%** combined backend + CLI |
-| Continuous integration | [Passed on Python 3.11 and 3.12](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/actions/runs/42716513426) |
+| Modular OOP | Four required dataclass models and a dedicated `DailyPlan` result class |
+| Multi-pet workflow | One owner, two pets, and five initial tasks in the CLI demo |
+| Scheduling | Sorting, filtering, interval conflicts, recurrence, priority selection, care budgets, and next-free-slot search |
+| Durable data | Automatic JSON save/load, downloadable household backups, and validated restoration |
+| Automated tests | **107 passing cases**, including backend, CLI, persistence, gap finding, and Streamlit integration |
+| Statement coverage | **100%** for `pawpal_system.py`; **98%** combined backend and CLI |
+| AI collaboration | Recorded agent workflow and a structured comparison of two prompting/context strategies |
 
 ## Contents
 
-- [Quick start](#quick-start)
-- [Required rubric evidence](#required-rubric-evidence)
-- [Features and user workflow](#features-and-user-workflow)
-- [System architecture and OOP design](#system-architecture-and-oop-design)
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [System Design and UML](#system-design-and-uml)
 - [Smarter Scheduling](#smarter-scheduling)
+- [Data Persistence](#data-persistence)
 - [Demo Walkthrough](#demo-walkthrough)
 - [Sample Output](#sample-output)
 - [Testing PawPal+](#testing-pawpal)
-- [Stretch feature evidence](#stretch-feature-evidence)
-- [AI collaboration and design decisions](#ai-collaboration-and-design-decisions)
-- [Project files](#project-files)
-- [Scope and future improvements](#scope-and-future-improvements)
+- [Rubric Evidence](#rubric-evidence)
+- [AI Collaboration and Prompt Comparison](#ai-collaboration-and-prompt-comparison)
+- [Project Files](#project-files)
+- [Design Tradeoffs](#design-tradeoffs)
 
-## Quick start
+## Quick Start
 
-**Prerequisite:** Python 3.11 or 3.12. Local verification used Python 3.12.14 and Streamlit 1.67.0; CI also passed on Python 3.11. No API key or external AI service is required to run PawPal+.
+**Requirements:** Python 3.11 or 3.12. Streamlit is pinned to version 1.67.0 in `requirements.txt`. The app does not require an API key.
 
-### 1. Clone and create the environment
+### 1. Get the project
 
 ```bash
 git clone https://github.com/harshapriyag123/ai110-module2show-pawpal-starter.git
@@ -51,7 +52,7 @@ cd ai110-module2show-pawpal-starter
 python -m venv .venv
 ```
 
-Activate the virtual environment using the command for your terminal:
+Activate the virtual environment:
 
 | Terminal | Command |
 |---|---|
@@ -65,13 +66,13 @@ Activate the virtual environment using the command for your terminal:
 python -m pip install -r requirements.txt
 ```
 
-### 3. Run the CLI demo
+### 3. Run the standalone demo
 
 ```bash
 python main.py --date 2026-11-09
 ```
 
-The fixed date makes the sample output reproducible. Running `python main.py` without the date uses the current date for the sample household.
+The fixed date reproduces the [sample output](#sample-output). Running `python main.py` without `--date` creates the demo for the current date.
 
 ### 4. Run the tests
 
@@ -79,102 +80,48 @@ The fixed date makes the sample output reproducible. Running `python main.py` wi
 python -m pytest
 ```
 
-### 5. Launch the application
+### 5. Open the application
 
 ```bash
 python -m streamlit run app.py
 ```
 
-Open the local URL printed in the terminal, normally `http://localhost:8501`. Click **Load sample household** in an empty household for a ready-to-explore example, or add your own pets in the sidebar.
+Open the local URL printed by Streamlit, normally `http://localhost:8501`. In an empty household, **Load sample household** creates the two-pet example. The app automatically restores an existing `data.json` from the working directory.
 
-## Required rubric evidence
+## Features
 
-The following tables map the supplied **20-point required-feature rubric** to implementation and verification evidence. Each linked source file can be inspected directly.
-
-### UML design — 4 points
-
-| Rubric item | Points | Implementation evidence |
-|---|---:|---|
-| Includes `Owner`, `Pet`, `Task`, and `Scheduler` in Mermaid source | 1 | [Final UML source](diagrams/uml_final.mmd) and [initial UML source](diagrams/uml_draft.mmd) are committed `.mmd` files. |
-| Classes list relevant attributes and methods | 1 | The final diagram includes task dates/status/recurrence, pet task management, owner preferences, and scheduler operations. |
-| Appropriate relationships | 1 | Owner manages multiple pets; each pet owns task occurrences; Scheduler reads the owner's shared task collection. |
-| Readable and consistent with the final implementation | 1 | The diagram includes the implemented `DailyPlan` result class and recurrence relationship; compare with [pawpal_system.py](pawpal_system.py). |
-
-### Core class implementation — 4 points
-
-| Rubric item | Points | Implementation evidence |
-|---|---:|---|
-| Task has description, due time/date, completion, and behavior | 1 | `Task` stores `description`, `scheduled_time`, `due_date`, `completed`, and implements `mark_complete()` and `end_at()`. |
-| Pet has identifying data, task collection, and task methods | 1 | `Pet` stores ID/name/species/tasks and provides add, lookup, edit, complete, undo, and removal methods. |
-| Owner has identifying data, pets, and management methods | 1 | `Owner` stores name/pets/preferences and implements `add_pet()`, `get_all_tasks()`, and `validate()`. |
-| Scheduler operates across multiple pets | 1 | `Scheduler.filter_tasks()` retrieves through `Owner.get_all_tasks()`; sorting, conflicts, and planning use that combined collection. `test_scheduler_reads_every_pet_through_owner_method` verifies this retrieval path. |
-
-All core classes are implemented in [pawpal_system.py](pawpal_system.py), with behavioral tests in [tests/test_pawpal.py](tests/test_pawpal.py).
-
-### Meaningful scheduling algorithms — 3 points
-
-| Rubric item | Points | Implementation evidence |
-|---|---:|---|
-| At least two algorithmic features | 1 | `sort_by_time()` and `filter_tasks()` are implemented, along with interval conflict detection, recurrence, and constrained priority selection. |
-| Correct, reproducible behavior | 1 | Tests verify ordering, filters, overlapping and adjacent intervals, recurrence dates, stable ties, and budget boundaries. The CLI accepts a fixed date. |
-| Features operate across multiple pets | 1 | The CLI sorts and plans tasks for Mochi and Luna together; conflict detection identifies their shared 08:00 clash. Cross-pet behavior is also tested. |
-
-### End-to-end demo — 3 points
-
-| Rubric item | Points | Implementation evidence |
-|---|---:|---|
-| `main.py` creates an owner, two pets, and 3+ tasks | 1 | `create_demo_owner()` creates Jordan, Mochi, Luna, and five tasks entered out of chronological order. |
-| Demo uses a scheduler algorithm | 1 | The demo calls sorting, filtering, conflict detection, and priority-constrained plan generation. |
-| Readable output and fenced README sample | 1 | [Sample Output](#sample-output) contains actual CLI output, including selected/skipped tasks and a newly created daily occurrence. |
-
-Source: [main.py](main.py). Verification: [tests/test_cli.py](tests/test_cli.py).
-
-### Pytest verification — 3 points
-
-| Rubric item | Points | Implementation evidence |
-|---|---:|---|
-| Test file exists and has a passing test | 1 | [tests/test_pawpal.py](tests/test_pawpal.py) is included in the passing suite. |
-| At least two meaningful passing tests | 2 | Tests verify completion, task addition, sorting, filtering, new recurring instances, cross-pet conflicts, and constraints. [Testing PawPal+](#testing-pawpal) includes commands, coverage, and passing output. |
-
-### Documentation and AI reflection — 3 points
-
-| Rubric item | Points | Submission evidence |
-|---|---:|---|
-| README explains the system, classes, and algorithms | 1 | [OOP design](#system-architecture-and-oop-design) and [Smarter Scheduling](#smarter-scheduling) document responsibilities, methods, and behavior. |
-| Run/demo/test instructions, pytest command, coverage summary, passing output | 1 | [Quick start](#quick-start), [Sample Output](#sample-output), and [Testing PawPal+](#testing-pawpal). |
-| Reflection explains AI influence, accepted/modified suggestions, and verification | 1 | [reflection.md](reflection.md) and [ai_interactions.md](ai_interactions.md) document the recurrence design change, AI assistance, and test evidence. Personal reflection statements are identified for student review. |
-
-## Features and user workflow
-
-| Owner action | What PawPal+ does |
+| Feature | User experience |
 |---|---|
-| Register multiple pets | Keeps each pet's identifying information and care tasks in one household. |
-| Add or edit a care task | Validates its description, date, start time, duration, priority, and repeat frequency. |
-| View pending or completed work | Combines pet and status filters with selected-date or all-date views. |
-| Generate a daily plan | Chooses tasks within the owner's available hours and remaining minutes, then displays them chronologically. |
-| Resolve a scheduling clash | Warns about overlapping intervals and explains which task was excluded from the plan. |
-| Complete repeating care | Keeps the completed occurrence and automatically attaches a new pending daily/weekly task. |
-| Download the plan | Exports the selected schedule and its explanations as CSV. |
+| Household management | Add an owner and multiple pets with identifying information. |
+| Task management | Add, edit, complete, undo, and delete individual care occurrences using stable IDs. |
+| Flexible care details | Set a description, due date, start time, duration, priority, and once/daily/weekly frequency. |
+| Clear daily plans | See selected tasks in chronological order, minutes used, and selection explanations. |
+| Combined filters | Browse tasks by pet, pending/completed status, and selected/all dates. |
+| Cross-pet conflict warnings | Identify equal-start and partial-duration overlaps across the entire household. |
+| Next available slot | Find the earliest gap of a requested duration across all pets' pending tasks. |
+| Recurring care | Completing a routine automatically creates and stores its next pending occurrence. |
+| Durable household storage | Changes save to JSON; a fresh session loads pets, preferences, tasks, and history. |
+| Portable backup and export | Download/restore household JSON or export a generated schedule as CSV. |
 
-**Three core actions:** add a pet, manage its care tasks, and review/complete a daily schedule across the household.
-
-## System architecture and OOP design
+## System Design and UML
 
 ### Class responsibilities
 
-| Class | Key state | Responsibility |
+| Class | Main attributes | Main responsibility |
 |---|---|---|
-| `Owner` | Name, pets, care budget, available hours | Represents the household and exposes all pets' tasks through `get_all_tasks()`. |
-| `Pet` | ID, name, species, task collection | Owns task occurrences and handles identity-safe task management. |
-| `Task` | ID, series ID, description, date/time, duration, priority, frequency, completion | Represents one occurrence and creates its next daily/weekly instance on completion. |
-| `Scheduler` | Owner reference | Retrieves, sorts, filters, detects conflicts, and selects a plan across pets. |
-| `DailyPlan` | Plan date, selected tasks, skipped tasks/reasons | Returns the planning result, totals care minutes, and produces display/export rows. |
+| `Owner` | Name, pets, care budget, available hours | Represents the household, exposes all pets' tasks, and saves/loads the complete model. |
+| `Pet` | ID, name, species, tasks | Owns task occurrences and handles add/edit/complete/undo/delete operations. |
+| `Task` | ID, series ID, description, date/time, duration, priority, frequency, completion | Represents one care occurrence and creates its next recurring instance. |
+| `Scheduler` | Owner reference | Retrieves, sorts, filters, detects conflicts, finds gaps, and selects daily plans across pets. |
+| `DailyPlan` | Plan date, selected tasks, skipped tasks and reasons | Returns a structured plan, totals care time, and formats display/export rows. |
 
-Dataclasses make model state explicit. Stable IDs distinguish tasks and pets with matching names. One-line method docstrings explain behavior. Domain logic stays in `pawpal_system.py`; both `main.py` and `app.py` use it.
+The core classes use Python dataclasses. `Owner.get_all_tasks()` is the shared retrieval boundary: the scheduler reads this method so every pet participates in its algorithms. The selected pet in the UI controls task editing; it does not limit household-wide scheduling.
 
-### Final UML
+Stable IDs distinguish pets or tasks with matching names. `series_id` connects related recurring occurrences while each occurrence retains its own task ID.
 
-The diagram below embeds the contents of [diagrams/uml_final.mmd](diagrams/uml_final.mmd). The original four-class design is preserved in [diagrams/uml_draft.mmd](diagrams/uml_draft.mmd).
+### Final class diagram
+
+The initial design is preserved in [diagrams/uml_draft.mmd](diagrams/uml_draft.mmd). The final Mermaid source is [diagrams/uml_final.mmd](diagrams/uml_final.mmd), also retained at [diagrams/uml.mmd](diagrams/uml.mmd).
 
 ```mermaid
 classDiagram
@@ -188,6 +135,12 @@ classDiagram
         +validate()
         +add_pet(pet)
         +get_all_tasks() list
+        +to_dict() dict
+        +to_json() str
+        +from_dict(data) Owner
+        +from_json(content) Owner
+        +save_to_json(path)
+        +load_from_json(path) Owner
     }
     class Pet {
         +str id
@@ -219,6 +172,7 @@ classDiagram
         +filter_tasks(pet_id, pet_name, completed, on_date) list
         +sort_by_time(tasks) list
         +detect_conflicts(on_date) list
+        +next_available_slot(on_date, duration_minutes, earliest, exclude_task_id) time
         +generate_schedule(on_date) DailyPlan
     }
     class DailyPlan {
@@ -236,83 +190,116 @@ classDiagram
     Task ..> Task : next occurrence
 ```
 
-`Task.mark_complete()` and `Pet.mark_task_complete()` return a `Task` when a next occurrence is available, or `None` when no new occurrence is produced.
+Completion methods return a new `Task` when a next occurrence is created, or `None` when no new occurrence is needed. The gap-finding method returns a start time or `None` if no interval fits.
 
-### UI-to-backend integration
+### Backend and interface boundary
 
-`app.py` stores an `Owner` in `st.session_state`. Forms call `Owner.add_pet()`, `Pet.add_task()`, and `Pet.update_task()`; completion calls `Pet.mark_task_complete()`. These objects survive normal Streamlit reruns. Displayed plans are recalculated from current state after edits, deletion, and completion.
-
-The scheduler obtains tasks through the owner's method rather than reading a single selected pet. The UI's pet selection controls editing and filtering; it does not restrict household-wide conflict detection or plan generation.
+All domain logic lives in `pawpal_system.py`. Both `main.py` and `app.py` call that logic. Streamlit stores the `Owner` object in `st.session_state` during interactions and persists changes through `save_to_json()`. Plans are recalculated after edits and completion, keeping the display consistent with the current model.
 
 ## Smarter Scheduling
 
-| Capability | Implementing method | Defined behavior |
+| Algorithm | Implementing method | Behavior |
 |---|---|---|
-| Chronological sorting | `Scheduler.sort_by_time()` | Sorts a copy by due date and start time; preserves stored task order and stable ties. |
-| Combined filtering | `Scheduler.filter_tasks()` | Filters by pet ID/name, completion status, and due date, using all pets as the input collection. |
-| Interval conflicts | `Scheduler.detect_conflicts()`, `_overlap()` | Reports overlapping pending tasks for the chosen date, including across pets; adjacent tasks are allowed. |
-| Daily/weekly recurrence | `Task.mark_complete()`, `Pet.mark_task_complete()` | Creates a distinct pending occurrence, preserves its series ID, and stores it with the same pet. |
-| Priority scheduling | `Scheduler.generate_schedule()` | Considers high, medium, then low priority; ties use start time and duration. |
-| Constraint selection | `Scheduler.generate_schedule()` | Requires the entire task to fit the owner's hours and remaining active-care budget. |
-| Explanations | `DailyPlan.to_rows()`, `DailyPlan.skipped` | Shows why a selected task fits and why a pending task was excluded. |
+| Chronological sorting | `Scheduler.sort_by_time()` | Sorts a copy by due date and time; preserves source collections and stable ties. |
+| Combined filtering | `Scheduler.filter_tasks()` | Combines pet ID/name, completion status, and due-date criteria across the owner's tasks. |
+| Interval conflict detection | `Scheduler.detect_conflicts()`, `_overlap()` | Detects overlapping pending task intervals on the same date, including different pets; adjacent tasks are allowed. |
+| Daily/weekly recurrence | `Task.mark_complete()`, `Pet.mark_task_complete()` | Creates a new pending instance, preserves series identity, and attaches it to the same pet. |
+| Priority selection | `Scheduler.generate_schedule()` | Considers high, medium, then low priority; uses start time and duration to break ties. |
+| Time and budget constraints | `Scheduler.generate_schedule()` | Requires tasks to fit wholly within available hours and the remaining active-care budget. |
+| Next available slot | `Scheduler.next_available_slot()` | Sorts and scans all pending intervals to find the earliest gap of the requested duration. |
+| Explained results | `DailyPlan.to_rows()`, `DailyPlan.skipped` | Provides selection explanations and specific conflict, availability, or budget exclusions. |
 
-### Selection procedure
+### Daily selection procedure
 
-1. Retrieve every pet's tasks through `Owner.get_all_tasks()`.
-2. Filter to pending tasks due on the selected date.
-3. Consider tasks by priority, then start time, then duration.
-4. Select a task if its full duration fits available hours, it does not overlap a selected task, and the remaining budget permits it.
-5. Retain excluded tasks as pending with a reason, and return selected tasks in chronological order.
+1. Retrieve all pets' tasks through `Owner.get_all_tasks()`.
+2. Select pending tasks due on the chosen date.
+3. Consider candidates by priority, time, and duration.
+4. Accept a task only when its full interval fits available hours, avoids already selected tasks, and fits the remaining budget.
+5. Keep excluded tasks pending with a reason, then display selected tasks chronologically.
 
-**Example:** a high-priority 08:00 walk and a medium-priority 08:00 breakfast overlap across two pets. The walk is selected and breakfast is flagged for attention. A later low-priority grooming task can also be excluded when only 15 minutes remain and it needs 20.
+For example, a high-priority 08:00 walk and a medium-priority 08:00 breakfast conflict across two pets. The planner selects the walk and reports the breakfast clash. A low-priority 20-minute grooming task is excluded if only 15 minutes remain.
 
-### Recurrence contract
+### Gap finding
 
-Completing a **daily** occurrence creates a new task at **due date + 1 day**; **weekly** uses **+ 7 days**. The new task has a new ID, the same series ID, and pending status. The original remains completed.
+The next-slot algorithm begins at the later of the requested earliest time and the owner's available start. It scans pending task intervals in time order, advances past occupied intervals, and returns the first sufficiently large gap. Overlapping occupied intervals are effectively merged during the scan.
 
-```python
-from datetime import date, time
-from pawpal_system import Pet, Task
+The algorithm considers every pet, ignores completed tasks and other dates, and can exclude the task currently being edited. It suggests a time without moving existing care tasks. Budget and priority selection apply separately when generating the plan.
 
-pet = Pet("Mochi", "dog")
-task = Task("Morning walk", time(8), frequency="daily",
-            due_date=date(2026, 11, 9))
-pet.add_task(task)
-next_task = pet.mark_task_complete(task.id)
+### Recurring task behavior
 
-assert task.completed
-assert next_task is not None and not next_task.completed
-assert next_task.id != task.id
-assert next_task.due_date == date(2026, 11, 10)
-assert next_task in pet.tasks
+Daily tasks advance from their due date by **one day**; weekly tasks advance by **seven days**. The completed occurrence remains in history. The next occurrence receives a new task ID, the same series ID, the same care details, and pending status.
+
+Applications call `Pet.mark_task_complete(task.id)` to create and store the next occurrence together. Repeated completion is idempotent. Undoing and recompleting reuses an existing next occurrence rather than duplicating it.
+
+## Data Persistence
+
+### Automatic application storage
+
+The Streamlit app loads `data.json` when a new session starts and saves after household changes, including preferences, pets, task edits, completion, undo, and deletion. The JSON file preserves:
+
+- Owner preferences and all pets.
+- Task IDs, series IDs, descriptions, dates, times, durations, priorities, and frequencies.
+- Completed occurrences and generated future occurrences.
+
+The storage implementation uses `Owner.to_dict()`, `from_dict()`, `to_json()`, `from_json()`, `save_to_json()`, and `load_from_json()` in [pawpal_system.py](pawpal_system.py).
+
+### Save and load from the CLI
+
+```bash
+# Create the demo, demonstrate recurrence, and save the complete household
+python main.py --date 2026-11-09 --save data.json
+
+# Start a separate run using the saved household
+python main.py --date 2026-11-10 --load data.json
 ```
 
-Applications use `Pet.mark_task_complete()` to attach the next occurrence automatically. Calling `Task.mark_complete()` directly returns the new task for the caller to store. Completing an already completed task does not create another instance. Undoing and recompleting reuses an existing next occurrence.
+The first command saves six task occurrences: the five initial tasks plus the new daily walk created after completion. The second command restores the saved model and plans the next date. Loading a saved household does not automatically complete its tasks.
 
-### Algorithm tradeoffs
+Actual save/load output, showing the save confirmation and the subsequent run:
 
-Sorting uses Python's stable `sorted()` operation, **O(n log n)**. Filtering is **O(n)**. Pairwise conflict detection and conflict checks during selection are **O(n²)** in the worst case. These straightforward methods keep the implementation readable for a small household.
+```text
+Saved household: data.json
+Today's Schedule | 2026-11-10 | Jordan
+Pets: Mochi (dog), Luna (cat)
+All pending tasks, sorted by time:
+  08:00 | Mochi: Morning walk
+Luna's pending tasks: Breakfast, Medication reminder, Brush coat
+Next free 15-minute slot from 08:00: 08:30
+Priority-based plan:
+  08:00–08:30 | Mochi: Morning walk | 30 min | high
+Care budget: 30/75 minutes
+```
 
-Priority selection is greedy: it favors higher-priority tasks and provides reasons, but does not guarantee the globally optimal number or combination of tasks. Fixed start times are preserved; the owner reviews conflicts and edits times deliberately.
+### Backup and restoration
+
+In **Household backup**, **Download household JSON** produces a portable copy. Uploading that file and selecting **Restore household** reconstructs the owner, pets, tasks, preferences, completion, and recurrence history. **Download plan as CSV** exports only the selected schedule and its explanations.
+
+Backups use schema version 1. Restoration validates fields, dates, times, priorities, durations, and unique task ownership before replacing the active household. Backups are limited to 2 MB. Saving writes and flushes a temporary file before atomic replacement, so a failed write preserves the previous file. Unreadable saved data is preserved and shown as an error rather than silently overwritten.
+
+The local installation serves one shared household. `PAWPAL_DATA_FILE` selects an alternate storage path; tests use isolated paths. Runtime `data.json` and temporary files are excluded from Git.
+
+**Files involved:** `pawpal_system.py`, `app.py`, `main.py`, `.gitignore`, `tests/test_persistence.py`, `tests/test_app.py`, `tests/test_cli.py`, and `tests/conftest.py`.
 
 ## Demo Walkthrough
 
-1. **Set up the household.** Enter an owner name, available hours, and remaining care budget in the sidebar, then save. Add two pets, or load the sample household while the household is empty.
-2. **Create care activities.** Open **Pets & tasks**, select a pet, and add a description, due date, start time, duration, priority, and repeat frequency. Use **Create or edit** to change a pending occurrence.
-3. **Inspect household-wide clashes.** Choose a **Plan date**. The **Daily plan** tab warns about exact-time clashes and partial duration overlaps across all pets.
-4. **Generate the plan.** Click **Generate schedule**. Review the chronological table, minutes used, selection explanations, and tasks under **Needs your attention**.
-5. **Filter and complete.** In **Your care list**, filter by pet/status/date and mark a daily or weekly task complete. Choose its next due date to inspect the new pending instance. Undo and individual deletion are available.
-6. **Export the result.** Download the schedule as CSV. The **How it works** tab explains constraints and recurrence rules.
+1. **Set up care preferences.** Enter an owner name, available hours, and remaining care minutes in the sidebar. Add two pets or load the sample household in an empty installation.
+2. **Create care tasks.** Open **Pets & tasks**, select a pet, and enter the task's date, start time, duration, priority, and repeat frequency. **Create or edit** opens an existing pending occurrence for editing.
+3. **Find a useful time.** Open **Find the next free time**, choose a duration and earliest start, then select **Find available slot**. The suggestion considers pending tasks for every pet.
+4. **Generate the plan.** Choose a **Plan date** in **Daily plan**. Conflict warnings identify overlaps; **Generate schedule** displays chronological tasks, time totals, explanations, and excluded tasks needing attention.
+5. **Track care.** Filter by pet, status, or date and mark a daily/weekly task complete. Its next dated occurrence appears automatically. Undo and individual deletion are available.
+6. **Continue between runs.** Changes save automatically. A fresh application session restores the household. Household JSON supports backup/restore, while CSV preserves a generated plan.
 
-The sample household uses Jordan, Mochi the dog, and Luna the cat. Its five tasks are entered out of time order to demonstrate sorting. An 08:00 cross-pet clash demonstrates conflict detection; the 75-minute budget demonstrates priority selection and an explicit budget exclusion.
+The supplied demo uses Jordan, Mochi the dog, and Luna the cat. Five tasks are entered out of order, including a shared 08:00 clash and a task that exceeds the 75-minute care budget. This makes sorting, filtering, gap finding, conflict handling, priorities, and recurrence visible in one run.
 
 ## Sample Output
 
-Actual output from:
+Command:
 
 ```bash
 python main.py --date 2026-11-09
 ```
+
+Actual CLI output:
 
 ```text
 Today's Schedule | 2026-11-09 | Jordan
@@ -325,6 +312,7 @@ All pending tasks, sorted by time:
   19:00 | Luna: Brush coat
 Luna's pending tasks: Breakfast, Medication reminder, Brush coat
 WARNING: Morning walk overlaps Breakfast.
+Next free 15-minute slot from 08:00: 08:30
 Priority-based plan:
   08:00–08:30 | Mochi: Morning walk | 30 min | high
   09:00–09:10 | Luna: Medication reminder | 10 min | high
@@ -336,148 +324,127 @@ Needs attention:
 Completed Morning walk; new daily task: 2026-11-10 at 08:00 (pending).
 ```
 
-This single run demonstrates **two-pet retrieval, chronological sorting, pet/status filtering, a conflict warning, priority-constrained scheduling, readable exclusions, and a newly created daily task**.
+The **08:30** free-slot suggestion follows the occupied 08:00–08:30 interval. The priority-based plan retains the walk, reminder, and playtime, uses **60 of 75 minutes**, and explains both excluded tasks. Completion then creates the next day's walk as a separate pending occurrence.
 
 ## Testing PawPal+
 
-### Commands
+### Test commands
 
 ```bash
-# All backend, CLI, and Streamlit UI tests
 python -m pytest
-
-# Backend + CLI statement coverage
 python -m pytest --cov=pawpal_system --cov=main --cov-report=term-missing
 ```
 
-### Verification evidence
+### Test coverage by suite
 
-| Suite | Passing cases | What it verifies |
+| Suite | Passing cases | Behaviors covered |
 |---|---:|---|
-| [tests/test_pawpal.py](tests/test_pawpal.py) | 59 | Models, task addition/completion, sorting, filters, recurrence, owner-wide retrieval, conflicts, priority/constraints, edits, and invalid inputs. |
-| [tests/test_cli.py](tests/test_cli.py) | 1 | The demo prints the two-pet workflow, a conflict, care-budget totals, and a new recurring occurrence. |
-| [tests/test_app.py](tests/test_app.py) | 8 | Actual Streamlit forms/session state, multiple pets, validation, task editing, plan display, completion, deletion, filters, and preferences. |
-| **Total** | **68** | Includes parameterized edge cases. |
+| [tests/test_pawpal.py](tests/test_pawpal.py) | 59 | Models, addition/completion, sorting, filters, recurrence, owner-wide retrieval, conflicts, priority/budget/hours, edits, and invalid values. |
+| [tests/test_available_slot.py](tests/test_available_slot.py) | 10 | Gaps across pets, merged overlaps, adjacency, ignored completed/other-date tasks, editing exclusions, full calendars, and invalid durations. |
+| [tests/test_persistence.py](tests/test_persistence.py) | 23 | Complete round trips, history/identity, schema validation, invalid files/values, Unicode, size limits, and failed atomic writes. |
+| [tests/test_cli.py](tests/test_cli.py) | 4 | End-to-end output, save/load in separate processes, empty saved households, and invalid saved-file errors. |
+| [tests/test_app.py](tests/test_app.py) | 11 | Forms/session state, multi-pet editing, plans/filters/completion, fresh-session restoration, corrupt-file preservation, and gap suggestions. |
+| **Total** | **107** | Includes parameterized edge cases. |
 
-Examples of meaningful tests:
+### Passing test output
 
-| Behavior | Named test |
-|---|---|
-| Completion changes status | `test_mark_complete_changes_status` |
-| Adding a task changes the collection | `test_task_addition_increases_count` |
-| Sorting is correct and does not mutate the original order | `test_sort_is_chronological_and_does_not_mutate_source` |
-| Filters combine pet, status, and date | `test_filter_by_pet_name_id_status_and_date` |
-| Daily/weekly completion creates a new instance | `test_completion_creates_distinct_next_occurrence` |
-| Scheduler calls the owner's shared task method | `test_scheduler_reads_every_pet_through_owner_method` |
-| Conflicts work across pets and respect priority | `test_conflicts_across_pets_choose_high_priority_and_explain` |
-| UI completion reaches the backend and refreshes the plan | `test_completion_creates_next_task_and_updates_plan_and_filters` |
-
-**Passing local test output — excerpt:**
+Actual local output from the coverage command:
 
 ```text
-collected 68 items
+........................................................................ [ 67%]
+...................................                                      [100%]
 
-============================== 68 passed in 2.14s ==============================
-```
-
-**Measured statement coverage:**
-
-```text
 Name               Stmts   Miss  Cover
 -------------------------------------
-main.py               43      1    98%
-pawpal_system.py     168      0   100%
+main.py               58      6    90%
+pawpal_system.py     262      0   100%
 -------------------------------------
-TOTAL                211      1    99%
+TOTAL                320      6    98%
+
+107 passed in 6.15s
 ```
 
-Coverage measures backend and CLI statements. The eight UI tests are included in the total test count, but these percentages do not measure UI line coverage. A visual browser review was blocked because the browser could not reach the isolated local server; UI behavior was verified using Streamlit's `AppTest`.
+The percentages measure backend and CLI **statement coverage**. Streamlit UI behavior is exercised using `AppTest`; the coverage percentages do not describe UI line coverage. Tests cover both normal workflows and failure cases, including month/year/leap-day recurrence boundaries, zero budget, exact and partial overlaps, failed disk operations, and invalid backups.
 
-Edge cases include empty households, zero budget, blank or invalid values, duplicate identifiers, exact-time and partial overlaps, adjacent tasks, tasks outside available hours, completion idempotence, and recurrence across month/year/leap-day boundaries.
-
-**Confidence level: 4/5 stars.** The evidence supports the documented single-owner workflow. Larger datasets, durable storage, time zones, and overnight care would need additional implementation and verification.
+**Reliability confidence: ★★★★☆ (4/5)** for the documented single-household, same-day workflow.
 
 ### Continuous integration
 
-[.github/workflows/tests.yml](.github/workflows/tests.yml) installs dependencies, runs the fixed-date CLI demo, and executes the test suite with coverage on Python **3.11 and 3.12**. [The verified implementation run](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/actions/runs/42716513426) completed successfully. The badge at the top links to ongoing workflow results.
+[.github/workflows/tests.yml](.github/workflows/tests.yml) installs dependencies, runs the fixed-date CLI demo, and executes pytest with coverage on **Python 3.11 and 3.12**. The badge at the top links to the latest results.
 
-## Stretch feature evidence
+## Rubric Evidence
 
-The rubric offers **five bonus categories worth 2 points each**. This table distinguishes implemented work from future extensions.
+### Required features — 20 possible points
 
-| Bonus category | Possible points | Status and evidence |
+| Rubric category | Points | Implemented evidence |
 |---|---:|---|
-| Advanced algorithmic capability via agent mode | +2 | **Implemented for review:** beyond basic sorting/filtering, `generate_schedule()` selects tasks within an availability window and a finite care budget, recording explicit exclusions. [Agent Workflow](ai_interactions.md#agent-workflow) records the requested task, files changed, completed work, and corrections. |
-| Data persistence layer | +2 | **Future extension:** the household is held in `st.session_state`. CSV exports a selected plan; there is no household save/load mechanism that restores pets/tasks between application runs. |
-| Advanced scheduling logic | +2 | **Implemented:** priority-first selection and interval checks prevent overlaps among selected tasks. The [CLI sample](#sample-output) demonstrates the higher-priority walk winning a conflict and grooming being excluded by budget. |
-| Professional UI and output formatting | +2 | **Implemented:** Streamlit metrics, tabs, forms, status icons, expandable task cards, warning/success messages, structured tables, and CSV download. The CLI uses aligned time ranges and readable labeled rows. See the formatting methods below. |
-| Thorough AI model or prompt comparison | +2 | **Future extension:** [ai_interactions.md](ai_interactions.md) records the actual workflow. A two-model or two-strategy comparison was not performed, so this category is not claimed. |
+| Clear, coherent UML | 4 | [Final `.mmd` source](diagrams/uml_final.mmd) contains all four required classes, attributes/methods, appropriate relationships, and the final storage/scheduling operations. The diagram is also rendered in this README. |
+| Core classes match the design | 4 | [pawpal_system.py](pawpal_system.py) implements Task data/behavior, Pet task management, Owner pet management, and Scheduler algorithms using the owner's multi-pet task method. |
+| At least two meaningful algorithms | 3 | Sorting, filtering, interval conflicts, recurrence, priority/constraint selection, and next-slot search are implemented across pets and covered by reproducible tests. |
+| End-to-end demo | 3 | [main.py](main.py) creates one owner, two pets, five initial tasks, and demonstrates scheduler algorithms. Actual readable CLI output appears in a fenced block above. |
+| Basic pytest suite | 3 | [tests/test_pawpal.py](tests/test_pawpal.py) includes meaningful completion, addition, sorting, filtering, and scheduling tests within the 107-case passing suite. |
+| Documentation and AI reflection | 3 | This README describes classes/algorithms and provides setup, demo/test commands, coverage, and passing output. [reflection.md](reflection.md) records AI-influenced decisions and correctness evidence. |
+
+### Stretch features — 10 possible bonus points
+
+| Bonus category | Points | Implemented evidence |
+|---|---:|---|
+| Advanced algorithm via agent mode | +2 | `Scheduler.next_available_slot()` finds a gap across all pets' pending intervals. The CLI/UI expose it, dedicated tests cover it, and [Agent Workflow](ai_interactions.md#agent-workflow) records requested work, changed files, completion, and corrections. |
+| Data persistence | +2 | `Owner.save_to_json()` / `load_from_json()` restore pets/tasks between runs. CLI save/load, UI autosave/restore, failed-write protection, and the complete persistence workflow are documented above. |
+| Advanced scheduling | +2 | Priority-first selection, availability/budget constraints, and interval checks prevent overlaps among selected tasks. The CLI example shows the resulting choices and exclusions. |
+| Professional UI and output | +2 | Structured CLI rows, formatted time ranges, emoji status, metrics, tabs, forms, warning/success feedback, expandable task cards, tables, and downloadable output are implemented. |
+| Thorough model or prompt comparison | +2 | [Prompt Comparison](ai_interactions.md#prompt-comparison) compares broad versus complete-context strategies using the same AI assistant, with task inputs, outputs, useful elements, problems, evidence, and the final decision. |
 
 ### Formatting implementation
 
-| Presentation feature | Function, component, or library |
+| Output feature | Function or library |
 |---|---|
-| Household and care counters | `st.metric()` in `app.py` |
-| Organized navigation and task editing | `st.tabs()`, `st.form()`, `st.expander()` |
-| Status and conflict feedback | `st.success()`, `st.warning()`, completion icons |
-| Chronological schedule and exclusion tables | `DailyPlan.to_rows()` with `st.dataframe()` |
-| Downloadable schedule | Python `csv.DictWriter` with `st.download_button()` |
-| Readable CLI lines | Python f-strings and date/time formatting in `main.main()` |
-| Consistent application styling | `.streamlit/config.toml` and static CSS in `app.py` |
+| Household and care counters | `st.metric()` |
+| Navigation, task forms, and detail cards | `st.tabs()`, `st.form()`, `st.expander()` |
+| Completion and conflict feedback | Emoji status icons, `st.success()`, `st.warning()`, `st.info()` |
+| Plan and exclusion tables | `DailyPlan.to_rows()` and `st.dataframe()` |
+| CSV plan export | Python `csv.DictWriter` and `st.download_button()` |
+| JSON household backup/restore | `Owner.to_json()`, `Owner.from_json()`, `st.download_button()`, `st.file_uploader()` |
+| CLI output | Python f-strings and date/time formatting in `main.main()` |
+| Application theme | `.streamlit/config.toml` and static CSS in `app.py` |
 
-## AI collaboration and design decisions
+## AI Collaboration and Prompt Comparison
 
-The project was developed with **ChatGPT Work** using the connected GitHub plugin and executable Python verification. The detailed record is in [reflection.md](reflection.md) and [ai_interactions.md](ai_interactions.md).
+I used ChatGPT Work to scaffold the OOP design, implement related files, generate behavioral tests, and connect the interface to the backend. The [Agent Workflow](ai_interactions.md#agent-workflow) identifies the task, files, completed work, and corrections.
 
-| Decision | AI-assisted implementation and verification |
-|---|---|
-| Keep a modular OOP model | Used dataclasses and separated `Owner`, `Pet`, `Task`, and `Scheduler`, then kept the UI dependent on that backend. |
-| Revise the initial recurrence design | Replaced an early start-date/completion-date-set approach after the complete instructions specified a **new Task instance**. Tests assert a new ID, correct due date, pending status, and owner-visible storage. |
-| Preserve multi-pet behavior | Used `Owner.get_all_tasks()` as the shared retrieval boundary; a test verifies the scheduler actually calls it. |
-| Verify generated code | Used the CLI, meaningful behavioral tests, and Streamlit integration tests; corrected deprecated UI width arguments after execution. |
-| Keep the workflow account accurate | Recorded one continuous conversation with separate work stages. No unobserved manual corrections, separate chats, or multi-model comparison are claimed. |
+The [Prompt Comparison](ai_interactions.md#prompt-comparison) examines the same recurrence-design problem under two context strategies:
 
-The reflection is an AI-assisted technical draft. Its personal learning statements should be reviewed and personalized by the student before submission.
+- **Broad request with partial context:** useful for establishing the four classes, dataclasses, and owner-wide retrieval, but its completion-date-set representation did not demonstrate a new task instance.
+- **Complete requirements with explicit behavior and tests:** led to dated task instances, preserved series identity, pet-level completion orchestration, and tests that assert the required outcomes.
 
-### Development checkpoints
+I retained the simple class separation and adopted the second strategy for recurrence. The comparison uses the actual initial skeleton and later implementation checkpoints; both strategies used the same assistant. The full design, tradeoff, testing, and learning reflection is in [reflection.md](reflection.md).
 
-| Stage | Commit evidence |
-|---|---|
-| UML and dataclass skeletons | [chore: add class skeletons from UML](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/commit/cd32fe47c4c444386beefff7dfbff7572b4b0031) |
-| Backend algorithms and CLI | [feat: implement multi-pet scheduling, recurrence, filtering, and CLI demo](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/commit/a697c3d55fdf8ea18816fabaa71564b18d91a2cf) |
-| Streamlit integration and final UML | [feat: connect polished Streamlit UI to pet care models and finalize UML](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/commit/02c6598b3f069185f99f114c1ff54d8c8232ac42) |
-| Verification and documentation | [test: verify PawPal workflows and document implementation and reflection](https://github.com/harshapriyag123/ai110-module2show-pawpal-starter/commit/1d3eec026d303d0942efd6d2ed2885bef9b3fe0d) |
-
-## Project files
+## Project Files
 
 | File | Purpose |
 |---|---|
-| [pawpal_system.py](pawpal_system.py) | UI-independent dataclasses, task management, recurrence, and scheduling algorithms. |
-| [main.py](main.py) | Reproducible end-to-end demo with two pets and five tasks. |
-| [app.py](app.py) | Streamlit interface connected to the backend using session state. |
-| [diagrams/uml_draft.mmd](diagrams/uml_draft.mmd) | Initial OOP design checkpoint. |
-| [diagrams/uml_final.mmd](diagrams/uml_final.mmd) | Final Mermaid source with implemented attributes/methods. |
-| [diagrams/uml.mmd](diagrams/uml.mmd) | Final diagram retained at the starter's original path. |
-| [tests/test_pawpal.py](tests/test_pawpal.py) | Backend behavior and parameterized edge-case tests. |
-| [tests/test_cli.py](tests/test_cli.py) | CLI workflow test. |
-| [tests/test_app.py](tests/test_app.py) | Streamlit form/session-state integration tests. |
-| [reflection.md](reflection.md) | Structured design, tradeoff, AI collaboration, and verification reflection. |
-| [ai_interactions.md](ai_interactions.md) | Factual agent workflow and extension record. |
-| [requirements.txt](requirements.txt) | Streamlit, pytest, and coverage dependencies. |
-| [pyproject.toml](pyproject.toml) | Test discovery/import-path and coverage configuration. |
-| [.streamlit/config.toml](.streamlit/config.toml) | Application theme and telemetry preference. |
-| [.github/workflows/tests.yml](.github/workflows/tests.yml) | Automated checks on both supported Python versions. |
+| [pawpal_system.py](pawpal_system.py) | Dataclass models, scheduling algorithms, recurrence, and JSON persistence. |
+| [main.py](main.py) | Two-pet CLI demo with optional JSON save/load. |
+| [app.py](app.py) | Interactive Streamlit application using the shared backend and automatic persistence. |
+| [diagrams/uml_draft.mmd](diagrams/uml_draft.mmd) | Initial class design checkpoint. |
+| [diagrams/uml_final.mmd](diagrams/uml_final.mmd) | Final Mermaid architecture source. |
+| [tests/test_pawpal.py](tests/test_pawpal.py) | Core behavior and scheduling tests. |
+| [tests/test_available_slot.py](tests/test_available_slot.py) | Next-slot algorithm tests. |
+| [tests/test_persistence.py](tests/test_persistence.py) | JSON round-trip, validation, and failed-write tests. |
+| [tests/test_cli.py](tests/test_cli.py), [tests/test_app.py](tests/test_app.py) | CLI and UI integration tests. |
+| [tests/conftest.py](tests/conftest.py) | Isolated application storage during tests. |
+| [reflection.md](reflection.md) | Structured project reflection. |
+| [ai_interactions.md](ai_interactions.md) | Agent workflow and prompt-strategy comparison. |
+| [requirements.txt](requirements.txt), [pyproject.toml](pyproject.toml) | Dependencies, pytest, and coverage settings. |
+| [.github/workflows/tests.yml](.github/workflows/tests.yml) | Automated checks on supported Python versions. |
 
-## Scope and future improvements
+## Design Tradeoffs
 
-| Current boundary | Defined behavior / possible next step |
+| Design choice | Reason and boundary |
 |---|---|
-| Session-based household | Normal UI reruns retain pets/tasks. A new session, server restart, or connection reset may lose them. Add validated JSON save/load for durable persistence. |
-| CSV plan export | Preserves the selected schedule and explanations; it is not an importable household backup. |
-| Same-day availability | Uses one local availability window. Tasks continuing past midnight are rejected. Time-zone and overnight scheduling could be added later. |
-| Remaining care budget | Counts pending work selected for the plan; completed tasks stay in history and do not consume this remaining budget. |
-| On-completion recurrence | Creates one next instance from the completed due date. Missed tasks remain on their original dates and are visible with **All dates**. |
-| Individual occurrence editing | Edits/deletion affect one occurrence. Undo keeps an already created future occurrence; a bulk series editor could be added. |
-| Greedy selection | Gives predictable priorities and reasons; a future optimizer or next-free-slot suggestion could improve time use. |
-
-Before submitting in the course portal, review the personal reflection and confirm the public repository URL points to the intended final work.
+| Greedy priority selection | Produces predictable priorities and clear reasons; it does not guarantee a globally optimal task combination. |
+| Pairwise conflict detection | Easy to inspect for a small household; O(n²) worst-case work. Sorting/filtering use O(n log n) / O(n), and gap finding uses O(n log n). |
+| Fixed task times | Preserves intended care times. Gap suggestions support deliberate edits rather than silently rescheduling tasks. |
+| One dated occurrence per Task | Keeps completion history explicit and creates only the next recurring instance. Missed tasks stay on their original dates and remain visible under **All dates**. |
+| Single-household JSON storage | Persists local use without a database. A hosted multi-user version would need authentication, household isolation, and coordinated concurrent writes. |
+| Same-day local availability | Keeps the first version understandable. Overnight windows, time zones, a bulk series editor, and a calendar view are future extensions. |
