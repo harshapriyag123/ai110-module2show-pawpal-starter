@@ -2,10 +2,29 @@
 
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
+from contextlib import suppress
+import json
+import os
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from uuid import uuid4
 
 PRIORITIES = ("high", "medium", "low")
 FREQUENCIES = ("once", "daily", "weekly")
+MAX_JSON_BYTES = 2_000_000
+
+
+def _record(value: object, keys: set[str], label: str) -> dict:
+    """Require an exact JSON object schema so malformed backups fail clearly."""
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"Invalid {label} fields.")
+    return value
+
+
+def _string_fields(record: dict, keys: tuple[str, ...]) -> None:
+    """Reject JSON values that cannot represent textual model fields."""
+    if any(not isinstance(record[key], str) for key in keys):
+        raise ValueError("Names, identifiers, dates, and times must be strings.")
 
 
 def _minutes(value: time) -> int:
@@ -167,6 +186,97 @@ class Owner:
         self.validate()
         return [(pet, task) for pet in self.pets for task in pet.tasks]
 
+    def to_dict(self) -> dict:
+        """Serialize the entire household, including task identity and recurrence history."""
+        self.validate()
+        return {"schema_version": 1, "owner": {
+            "name": self.name, "available_minutes": self.available_minutes,
+            "day_start": self.day_start.isoformat(timespec="minutes"),
+            "day_end": self.day_end.isoformat(timespec="minutes"),
+            "pets": [{"id": pet.id, "name": pet.name, "species": pet.species,
+                      "tasks": [{"id": task.id, "series_id": task.series_id,
+                                 "description": task.description,
+                                 "scheduled_time": task.scheduled_time.isoformat(timespec="minutes"),
+                                 "due_date": task.due_date.isoformat(),
+                                 "duration_minutes": task.duration_minutes,
+                                 "priority": task.priority, "frequency": task.frequency,
+                                 "completed": task.completed} for task in pet.tasks]}
+                     for pet in self.pets],
+        }}
+
+    def to_json(self) -> str:
+        """Encode a portable, readable JSON backup without losing date/time types."""
+        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Owner":
+        """Validate a versioned backup and reconstruct its Owner, Pet, and Task objects."""
+        root = _record(data, {"schema_version", "owner"}, "backup")
+        if type(root["schema_version"]) is not int or root["schema_version"] != 1:
+            raise ValueError("Unsupported backup schema version.")
+        info = _record(root["owner"], {"name", "available_minutes", "day_start", "day_end", "pets"}, "owner")
+        _string_fields(info, ("name", "day_start", "day_end"))
+        if not isinstance(info["pets"], list):
+            raise ValueError("Pets must be a list.")
+        pets = []
+        for raw_pet in info["pets"]:
+            pet = _record(raw_pet, {"id", "name", "species", "tasks"}, "pet")
+            _string_fields(pet, ("id", "name", "species"))
+            if not isinstance(pet["tasks"], list):
+                raise ValueError("Tasks must be a list.")
+            tasks = []
+            for raw_task in pet["tasks"]:
+                task = _record(raw_task, {"id", "series_id", "description", "scheduled_time", "due_date",
+                                          "duration_minutes", "priority", "frequency", "completed"}, "task")
+                _string_fields(task, ("id", "series_id", "description", "scheduled_time", "due_date",
+                                      "priority", "frequency"))
+                tasks.append(Task(**{**task, "due_date": date.fromisoformat(task["due_date"]),
+                                     "scheduled_time": time.fromisoformat(task["scheduled_time"])}))
+            pets.append(Pet(pet["name"], pet["species"], tasks, pet["id"]))
+        return cls(info["name"], pets, info["available_minutes"],
+                   time.fromisoformat(info["day_start"]), time.fromisoformat(info["day_end"]))
+
+    @classmethod
+    def from_json(cls, content: str | bytes) -> "Owner":
+        """Parse a size-limited backup and reject invalid JSON or model values."""
+        size = len(content.encode("utf-8")) if isinstance(content, str) else len(content)
+        if size > MAX_JSON_BYTES:
+            raise ValueError("Household backups must be at most 2 MB.")
+        try:
+            data = json.loads(content)
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError("The backup is not valid UTF-8 JSON.") from exc
+        return cls.from_dict(data)
+
+    def save_to_json(self, path: str | Path = "data.json") -> None:
+        """Atomically save the household so a failed write preserves the previous file."""
+        payload = self.to_json()
+        if len(payload.encode("utf-8")) > MAX_JSON_BYTES:
+            raise ValueError("Household backups must be at most 2 MB.")
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with NamedTemporaryFile(mode="w", encoding="utf-8", dir=target.parent,
+                                    prefix=f".{target.name}.", suffix=".tmp", delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(payload + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, target)
+        finally:
+            if temporary is not None:
+                with suppress(OSError):
+                    temporary.unlink(missing_ok=True)
+
+    @classmethod
+    def load_from_json(cls, path: str | Path = "data.json") -> "Owner":
+        """Restore a complete household from a file created by save_to_json."""
+        target = Path(path)
+        if target.stat().st_size > MAX_JSON_BYTES:
+            raise ValueError("Household backups must be at most 2 MB.")
+        return cls.from_json(target.read_bytes())
+
 
 @dataclass
 class DailyPlan:
@@ -225,6 +335,30 @@ class Scheduler:
         tasks = [task for _, task in self.filter_tasks(on_date=on_date, completed=False)]
         return [(first, second) for i, first in enumerate(tasks) for second in tasks[i + 1:]
                 if self._overlap(first, second)]
+
+    def next_available_slot(self, on_date: date, duration_minutes: int,
+                            earliest: time | None = None, exclude_task_id: str | None = None) -> time | None:
+        """Find the first gap across all pending pet tasks within the owner's hours."""
+        self.owner.validate()
+        if type(duration_minutes) is not int or not 1 <= duration_minutes <= 1440:
+            raise ValueError("Slot duration must be an integer from 1 to 1440 minutes.")
+        candidate = max(_minutes(earliest or self.owner.day_start), _minutes(self.owner.day_start))
+        limit = _minutes(self.owner.day_end)
+        if candidate + duration_minutes > limit:
+            return None
+        for _, task in self.sort_by_time(self.filter_tasks(on_date=on_date, completed=False)):
+            if task.id == exclude_task_id:
+                continue
+            start = _minutes(task.scheduled_time)
+            end = start + task.duration_minutes
+            if end <= candidate:
+                continue
+            if candidate + duration_minutes <= start:
+                return time(candidate // 60, candidate % 60)
+            candidate = max(candidate, end)
+            if candidate + duration_minutes > limit:
+                return None
+        return time(candidate // 60, candidate % 60)
 
     def generate_schedule(self, on_date: date | None = None) -> DailyPlan:
         """Choose tasks by priority within fixed times, hours, and remaining care budget."""

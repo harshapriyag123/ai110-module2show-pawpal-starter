@@ -1,9 +1,11 @@
 """Streamlit interface for PawPal+'s tested, UI-independent domain model."""
 
 import csv
+import os
 from dataclasses import replace
 from datetime import date, time
 from io import StringIO
+from pathlib import Path
 
 import streamlit as st
 
@@ -25,14 +27,28 @@ h1, h2, h3 {color: #173f35;}
 </style>
 """, unsafe_allow_html=True)
 
+DATA_FILE = Path(os.environ.get("PAWPAL_DATA_FILE", "data.json"))
+
 if "owner" not in st.session_state:
-    st.session_state.owner = Owner("Jordan")
+    try:
+        st.session_state.owner = Owner.load_from_json(DATA_FILE) if DATA_FILE.exists() else Owner("Jordan")
+    except (OSError, ValueError) as exc:
+        st.session_state.owner = Owner("Jordan")
+        st.session_state.storage_blocked = True
+        st.session_state.storage_error = f"Saved data could not be loaded: {exc} The file is preserved. Restore a valid JSON backup to resume saving."
 if "show_plan" not in st.session_state:
     st.session_state.show_plan = False
 
 
 def notice(message: str) -> None:
-    """Show a one-time confirmation after a state-changing rerun."""
+    """Persist a household change and show its result after rerunning the interface."""
+    if not st.session_state.get("storage_blocked", False):
+        try:
+            st.session_state.owner.save_to_json(DATA_FILE)
+        except (OSError, ValueError) as exc:
+            st.session_state.storage_error = f"Changes are in this session, but saving failed: {exc} Download a household backup to keep them."
+        else:
+            st.session_state.pop("storage_error", None)
     st.session_state.notice = message
     st.rerun()
 
@@ -40,6 +56,26 @@ def notice(message: str) -> None:
 with st.sidebar:
     st.title("🐾 PawPal+")
     st.caption("A little care. A better day.")
+    with st.expander("Household backup"):
+        st.caption("Changes save automatically to this installation's local JSON file. A new session restores the saved household.")
+        st.download_button("Download household JSON", st.session_state.owner.to_json(),
+                           file_name="pawpal-household.json", mime="application/json", key="household_backup")
+        backup = st.file_uploader("Household JSON to restore", type=["json"], key="restore_backup")
+        if st.button("Restore household", disabled=backup is None, key="restore_household"):
+            try:
+                restored = Owner.from_json(backup.getvalue())
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state.owner = restored
+                st.session_state.storage_blocked = False
+                st.session_state.show_plan = True
+                for key in list(st.session_state):
+                    if key in ("owner_name", "budget", "hours_start", "hours_end", "manage_pet", "filter_pet") or key.startswith(("editor_", "title_")):
+                        st.session_state.pop(key, None)
+                notice("Household restored from JSON.")
+    if "storage_error" in st.session_state:
+        st.error(st.session_state.storage_error)
     if st.button("Load sample household", key="load_demo",
                  disabled=bool(st.session_state.owner.pets),
                  help="Try two pets, a time conflict, and recurring routines in an empty household."):
@@ -82,7 +118,7 @@ with st.sidebar:
             st.error(str(exc))
         else:
             notice(f"{pet_name.strip()} joined your household.")
-    st.caption("Session data stays while this browser session is active. Download a plan to keep a copy.")
+    st.caption("Pets, tasks, preferences, and completion history save automatically. Household JSON backups can be restored on another installation.")
 
 owner = st.session_state.owner
 scheduler = Scheduler(owner)
@@ -199,6 +235,19 @@ with tasks_tab:
                 notice("Task updated." if editing else "Task added.")
         st.caption("Repeating tasks create one new dated instance when completed. Edits apply to this occurrence.")
 
+        with st.expander("Find the next free time"):
+            a, b = st.columns(2)
+            gap_duration = a.number_input("Free slot duration (minutes)", 1, 1440, 15, key="gap_duration")
+            gap_earliest = b.time_input("Find a slot from", owner.day_start, step=60, key="gap_earliest")
+            if st.button("Find available slot", key="find_slot"):
+                free = scheduler.next_available_slot(plan_date, int(gap_duration), gap_earliest,
+                                                     editing.id if editing else None)
+                if free is not None:
+                    st.info(f"Next available start: {free:%H:%M} on {plan_date}. Use this time when adding or editing a task.")
+                else:
+                    st.info("No free interval of that duration fits the available hours.")
+            st.caption("Finds a gap across every pet's pending tasks. Budget and priority selection still apply when generating the plan.")
+
         st.divider()
         st.subheader("Your care list")
         filters = st.columns(3)
@@ -249,7 +298,8 @@ The care budget covers **pending work**. Completed tasks stay in your history an
 the remaining budget. A repeating task advances from its due date when completed; missed tasks
 remain on their original dates and are visible using **All dates**.
 
-Your session holds the household while you use the app. CSV exports preserve the selected plan;
-closing or refreshing the connection can reset the household. No account or API key is required.
+Changes save automatically to a local JSON file, and new sessions restore it. Household JSON
+backups preserve all pets, tasks, recurrence IDs, and completion history. CSV downloads contain
+the selected plan. This installation is designed for one shared household. No account or API key is required.
 """)
 

@@ -4,6 +4,9 @@ from datetime import date, time, timedelta
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
+import os
+
+from pawpal_system import Owner
 
 APP = Path(__file__).resolve().parents[1] / "app.py"
 
@@ -121,3 +124,34 @@ def test_filter_pet_and_all_dates_uses_stable_pet_ids():
     app.selectbox(key="filter_dates").select("All dates").run()
     visible_task_keys = [button.key for button in app.button if button.key and button.key.startswith("complete_")]
     assert set(visible_task_keys) == {f"complete_{task.id}" for task in cat.tasks}
+
+
+def test_fresh_application_session_restores_saved_household():
+    app = start_demo()
+    pet = app.session_state.owner.pets[0]
+    walk = next(task for task in pet.tasks if task.description == "Morning walk")
+    app.button(key=f"complete_{walk.id}").click().run()
+    saved = Owner.load_from_json(os.environ["PAWPAL_DATA_FILE"])
+    fresh = AppTest.from_file(str(APP), default_timeout=15).run()
+    assert not fresh.exception
+    assert fresh.session_state.owner == saved
+    assert fresh.session_state.owner.pets[0].get_task(walk.id).completed
+
+
+def test_corrupt_saved_file_is_preserved_and_error_is_readable():
+    path = Path(os.environ["PAWPAL_DATA_FILE"])
+    path.write_text("broken")
+    app = AppTest.from_file(str(APP), default_timeout=15).run()
+    assert not app.exception and app.error
+    app.text_input(key="pet_name").input("Mochi")
+    click(app, "Add pet")
+    assert path.read_text() == "broken"
+    assert len(app.session_state.owner.pets) == 1
+
+
+def test_available_slot_ui_uses_household_calendar():
+    app = start_demo()
+    app.time_input(key="gap_earliest").set_value(time(8))
+    app.button(key="find_slot").click().run()
+    assert not app.exception
+    assert any("Next available start: 08:30" in info.value for info in app.info)

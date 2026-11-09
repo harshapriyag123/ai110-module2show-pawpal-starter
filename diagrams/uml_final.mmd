@@ -9,6 +9,12 @@ classDiagram
         +validate()
         +add_pet(pet)
         +get_all_tasks() list
+        +to_dict() dict
+        +to_json() str
+        +from_dict(data) Owner
+        +from_json(content) Owner
+        +save_to_json(path)
+        +load_from_json(path) Owner
     }
     class Pet {
         +str id
@@ -40,6 +46,7 @@ classDiagram
         +filter_tasks(pet_id, pet_name, completed, on_date) list
         +sort_by_time(tasks) list
         +detect_conflicts(on_date) list
+        +next_available_slot(on_date, duration_minutes, earliest, exclude_task_id) time
         +generate_schedule(on_date) DailyPlan
     }
     class DailyPlan {
