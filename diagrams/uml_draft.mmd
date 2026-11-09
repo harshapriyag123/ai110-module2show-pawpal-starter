@@ -1,0 +1,35 @@
+classDiagram
+    direction TB
+    class Owner {
+        +str name
+        +list pets
+        +int available_minutes
+        +time day_start
+        +time day_end
+        +add_pet(pet)
+        +get_all_tasks() list
+    }
+    class Pet {
+        +str name
+        +str species
+        +list tasks
+        +add_task(task)
+    }
+    class Task {
+        +str description
+        +time scheduled_time
+        +int duration_minutes
+        +str priority
+        +str frequency
+        +date start_date
+        +set completed_dates
+        +is_due(on_date) bool
+        +mark_complete(on_date)
+    }
+    class Scheduler {
+        +Owner owner
+        +generate_schedule(on_date)
+    }
+    Owner "1" o-- "0..*" Pet : manages
+    Pet "1" *-- "0..*" Task : care tasks
+    Scheduler --> Owner : gets all tasks
